@@ -1,0 +1,159 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+import numpy as np
+
+def ran_q(d, k):
+    psi = (np.random.randn(d * k) + 1j * np.random.randn(d * k))
+    psi = psi / np.sqrt((sum(abs(psi) ** 2)))
+    psi = np.reshape(psi, (d*k,1))
+    ro = np.dot(psi, np.conj(psi).T)
+    return ro
+
+def ran_q_psi(d, k):
+    psi = (np.random.randn(d * k) + 1j * np.random.randn(d * k))
+    psi = psi / np.sqrt((sum(abs(psi) ** 2)))
+    psi = np.reshape(psi, (d,k))
+    return psi
+
+input_list = ['0000','0011','1100','1111']
+input_coeff = [np.sqrt(3)/8,-np.sqrt(14)/8,np.sqrt(5)/8,-np.sqrt(42)/8]
+subs = [[1],[2,3,4]]
+n_subs = [len(subs[0]),len(subs[1])]
+d_a = 2**len(subs[0])
+d_b = 2**len(subs[1])
+M = np.zeros((d_a,d_b))
+shmd_dec = np.zeros((d_a,d_b))
+ro = np.zeros((16,16))
+tr_ro_a = np.zeros((16,16))
+tr_ro_b = np.zeros((16,16))
+
+
+def part_trace(ro, d, k, num):
+    if num == 1:
+        temp = d
+        d = k
+        k = temp
+    new_ro = np.zeros((d, d), dtype=complex)
+    for i in range(k):
+        m = [0] * i + [1] + [0] * (k - i - 1)
+        m = np.array(m).reshape(k, 1)
+        one = np.identity(d)
+        if num == 0:
+            elem = np.kron(one, m)
+        else:
+            elem = np.kron(m, one)
+        new_ro += np.dot(np.conj(elem).T, np.dot(ro, elem))
+    return new_ro
+
+
+
+def t_c(num, base):
+    p = 1
+    s = int(list(reversed(str(num)))[0])
+    for i in list(reversed(str(num)))[1:]:
+        s += (int(i))*(base ** p)
+        p += 1
+    return s
+
+for i in range(len(input_coeff)):
+    for j in range(len(input_list)):
+        ro[t_c(input_list[i],2)][t_c(input_list[j],2)] = input_coeff[i] * input_coeff[j]
+        c1_a = t_c(input_list[j][:len(subs[0])] + input_list[i][-len(subs[1]):],2)
+        c2_a = t_c(input_list[i][:len(subs[0])] + input_list[j][-len(subs[1]):],2)
+        c1_b = t_c(input_list[i][:len(subs[0])] + input_list[j][-len(subs[1]):],2)
+        c2_b = t_c(input_list[j][:len(subs[0])] + input_list[i][-len(subs[1]):],2)
+        tr_ro_a[c1_a][c2_a] = input_coeff[i] * input_coeff[j]
+        tr_ro_b[c1_b][c2_b] = input_coeff[i] * input_coeff[j]
+
+for (offs,i) in enumerate(input_coeff):
+    i_1 = t_c(input_list[offs][:subs[0][0]],2)
+    i_2 = t_c(input_list[offs][subs[0][0]:],2)
+    M[i_1][i_2] = i
+
+u,s,v = np.linalg.svd(M)
+
+s_2 = [i**2 for i in s]
+lam = np.diag(s_2)
+d = min(d_a,d_b)
+v_a = np.zeros((len(s),len(s)))
+v_a = np.empty(d_a).reshape(d_a,1)
+v_b = np.zeros((d_b,1))
+lam_b = np.diag(s_2 + [0]*(d_b - len(s_2)))
+
+
+for i in range(d):
+    m_a = [0] * i + [1] + [0] * (d_a - i - 1)
+    m_b = [0] * i + [1] + [0] * (d_b - i- 1)
+    m_a = np.array(m_a).reshape(d_a, 1)
+    m_b = np.array(m_b).reshape(d_b, 1)
+    new_m_a = np.dot(u,m_a)
+    new_m_b = np.dot(np.conj(m_b).T,v)
+    v_a = np.c_[v_a,new_m_a]
+    v_b = np.c_[v_b, np.conj(new_m_b).T]
+    shmd_dec += np.dot(np.dot(s[i] , new_m_a), new_m_b)
+    #print(str(s[i])+'* '+str(new_m_a) +'* '+ str(np.conj(new_m_b).T))
+
+#print(shmd_dec)
+
+v_a = np.delete(v_a,0,1)
+v_b = np.delete(v_b,0,1)
+
+part_ro_A = np.dot(v_a, np.dot(lam,np.linalg.inv(v_a)))
+print('Part_ro_A = ', part_ro_A)
+
+part_ro_B = np.dot(np.conjugate(v).T, np.dot(lam_b, v))
+print('Part_ro_B = ',part_ro_B)
+
+ro_A = part_trace(ro,2,8,0)
+ro_B = part_trace(ro,2,8,1)
+
+#Test different part_trace
+#print(part_ro_A - ro_A,part_ro_B-ro_B,sep = '\n')
+
+print('K= ',1/np.sum(lam **2))
+
+eig_a = np.linalg.eigvals(tr_ro_a)
+eig_b = np.linalg.eigvals(tr_ro_b)
+
+N_a = abs(sum(x for x in eig_a if x<0))
+N_b = abs(sum(x for x in eig_b if x<0))
+
+print('N_a= ',N_a,'N_b= ',N_b)
+
+K_l = []
+N_l = []
+
+last_ro_tr_a = np.zeros((16,16),dtype=complex)
+last_ro_tr_b = np.zeros((16,16),dtype=complex)
+
+
+for i in range(10000):
+    psi = ran_q_psi(4,4)
+    u, s, v = np.linalg.svd(psi)
+    K_l.append(1 / np.sum(s ** 4))
+    ro = ran_q(4,4)
+    for i in range(16):
+        for j in range(16):
+            buf_j_a = t_c(str(f"{i:04b}")[-2:][::-1] + str(f"{j:04b}")[-2:],2)
+            buf_i_a = t_c(str(f"{i:04b}")[:2] + str(f"{j:04b}")[:2][::-1],2)
+            buf_j_b = t_c(str(f"{j:04b}")[:2]  + str(f"{i:04b}")[:2][::-1], 2)
+            buf_i_b = t_c(str(f"{j:04b}")[-2:][::-1] + str(f"{i:04b}")[-2:] , 2)
+            last_ro_tr_a[buf_i_a][buf_j_a] = ro[i][j]
+            last_ro_tr_b[buf_i_b][buf_j_b] = ro[i][j]
+
+    #Test
+    #print(last_ro_tr_a - np.conj(last_ro_tr_b).T)
+    eig_a = np.linalg.eigvals(last_ro_tr_a)
+    N_l.append(abs(sum(x for x in eig_a if x<0)))
+
+plt.hist(K_l)
+plt.xlabel('Schmidt number')
+plt.ylabel('Frequency')
+plt.show()
+
+plt.hist(N_l)
+plt.xlabel('Negativity')
+plt.ylabel('Frequency')
+plt.show()
