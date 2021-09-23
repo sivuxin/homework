@@ -1,9 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
-import numpy as np
-
 def ran_q(d, k):
     psi = (np.random.randn(d * k) + 1j * np.random.randn(d * k))
     psi = psi / np.sqrt((sum(abs(psi) ** 2)))
